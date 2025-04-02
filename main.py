@@ -4,6 +4,7 @@ from supabase import create_client, Client
 from openai import OpenAI
 import os
 import sys
+import time
 
 def get_exe_directory():
     if getattr(sys, 'frozen', False):
@@ -33,7 +34,7 @@ def fetch_table_data():
     global openai_client
     openai_client = OpenAI(api_key=open_ai_key)
 
-    url = "https://otorita.net/otorita_test/maagar/tables/gettbldata.asp"
+    url = "https://otorita.net/otorita_test/maagar/tables/gettbldata.asp?index=9"
     
     try:
         # Send GET request to the URL
@@ -46,9 +47,6 @@ def fetch_table_data():
         # Access the data array from the response
         data = json_response.get('data', [])
         
-        # Template for the text line
-        template = "שער ה-*1* בתאריך ה-*2* הוא *3* ש\"ח."
-        
         # Create a list to store all formatted lines
         formatted_lines = []
         
@@ -57,14 +55,14 @@ def fetch_table_data():
         
         # Create records with embeddings
         for item in data:
-            formatted_text = template.replace("*1*", item["nm"]).replace("*2*", item["dt"]).replace("*3*", item["mddVl"])
+            formatted_text = item["txt"]
             formatted_lines.append(formatted_text)
             
             try:
                 embedding = get_embedding(formatted_text)
                 record = {
                     "content": formatted_text,
-                    "name_in_db": f"table_data_{item['dt']}",
+                    "name_in_db": "table_"+item["tblName"],
                     "embedding": embedding,
                     "type": "table",
                 }
@@ -81,21 +79,21 @@ def fetch_table_data():
         # Insert records into Supabase
         if records_to_insert:
             try:
-                # Delete existing records with the same name_in_db pattern
-                delete_response = supabase.table('documents_for_work_world_for_lawyers').delete().like('name_in_db', 'table_data_%').execute()
-                if hasattr(delete_response, 'error') and delete_response.error:
-                    print(f"Error deleting existing records: {delete_response.error}")
-                else:
-                    print("Deleted existing table data records")
-                
-                # Insert new records
-                response = supabase.table('documents_for_work_world_for_lawyers').insert(records_to_insert).execute()
-                if hasattr(response, 'error') and response.error:
-                    print(f"Error inserting records: {response.error}")
-                else:
-                    print(f"Successfully inserted {len(response.data)} records into Supabase")
+                # Process records one by one to identify problematic ones
+                for index, record in enumerate(records_to_insert):
+                    try:
+                        print(f"Inserting record {index + 1} of {len(records_to_insert)}")
+                        response = supabase.table('documents_for_work_world_for_lawyers').insert(record).execute()
+                        print(f"Successfully inserted record {index + 1}")
+                        # Add a small delay between records to prevent overwhelming the connection
+                        time.sleep(0.5)
+                    except Exception as e:
+                        print(f"Error inserting record {index + 1}: {str(e)}")
+                        print(f"Record content: {record['content'][:100]}...")  # Print first 100 chars of content
+                        continue
             except Exception as e:
-                print(f"Error during Supabase operations: {e}")
+                print(f"Error during Supabase operations: {str(e)}")
+                print("Full error details:", e.__class__.__name__)
             
     except requests.exceptions.RequestException as e:
         print(f"Error fetching data: {e}")
