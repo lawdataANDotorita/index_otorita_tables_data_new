@@ -5,6 +5,9 @@ from openai import OpenAI
 import os
 import sys
 import time
+import numpy as np
+from datetime import datetime
+
 
 def get_exe_directory():
     if getattr(sys, 'frozen', False):
@@ -19,6 +22,9 @@ def get_embedding(text):
         dimensions=1536,
     )
     return response.data[0].embedding
+
+def normalize(v):
+    return v / np.linalg.norm(v)
 
 def fetch_table_data():
     # Initialize Supabase client
@@ -60,11 +66,27 @@ def fetch_table_data():
             
             try:
                 embedding = get_embedding(formatted_text)
+                normalized_embedding = normalize(embedding)
+                embedding_list = normalized_embedding.tolist()  # Convert to regular Python list
+            
+                # Convert the date from dd/MM/yyyy to yyyy-MM-dd format
+                date_str = item.get("dt", "")
+                if date_str:
+                    try:
+                        date_obj = datetime.strptime(date_str, "%d/%m/%Y")
+                        formatted_date = date_obj.strftime("%Y-%m-%d")
+                    except ValueError:
+                        print(f"Warning: Invalid date format for date: {date_str}")
+                        formatted_date = None
+                else:
+                    formatted_date = None
+
                 record = {
                     "content": formatted_text,
                     "name_in_db": "table_"+item["tblName"],
-                    "embedding": embedding,
+                    "embedding": embedding_list,
                     "type": "table",
+                    "dt": formatted_date
                 }
                 records_to_insert.append(record)
             except Exception as e:
