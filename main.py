@@ -5,7 +5,6 @@ from openai import OpenAI
 import os
 import sys
 import time
-import numpy as np
 from datetime import datetime
 
 
@@ -22,9 +21,6 @@ def get_embedding(text):
         dimensions=1536,
     )
     return response.data[0].embedding
-
-def normalize(v):
-    return v / np.linalg.norm(v)
 
 def fetch_table_data():
     # Initialize Supabase client
@@ -66,8 +62,7 @@ def fetch_table_data():
             
             try:
                 embedding = get_embedding(formatted_text)
-                normalized_embedding = normalize(embedding)
-                embedding_list = normalized_embedding.tolist()  # Convert to regular Python list
+                embedding_list = embedding.tolist()  # Convert to regular Python list
             
                 # Convert the date from dd/MM/yyyy to yyyy-MM-dd format
                 date_str = item.get("dt", "")
