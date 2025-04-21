@@ -36,7 +36,7 @@ def fetch_table_data():
     global openai_client
     openai_client = OpenAI(api_key=open_ai_key)
 
-    url = "https://otorita.net/otorita_test/maagar/tables/gettbldata.asp?index=9"
+    url = "https://otorita.net/otorita_test/maagar/tables/gettbldata.asp?index=10"
     
     try:
         # Send GET request to the URL
@@ -62,7 +62,6 @@ def fetch_table_data():
             
             try:
                 embedding = get_embedding(formatted_text)
-                embedding_list = embedding.tolist()  # Convert to regular Python list
             
                 # Convert the date from dd/MM/yyyy to yyyy-MM-dd format
                 date_str = item.get("dt", "")
@@ -79,7 +78,7 @@ def fetch_table_data():
                 record = {
                     "content": formatted_text,
                     "name_in_db": "table_"+item["tblName"],
-                    "embedding": embedding_list,
+                    "embedding": embedding,
                     "type": "table",
                     "dt": formatted_date
                 }
