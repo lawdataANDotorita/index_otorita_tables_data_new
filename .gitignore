@@ -1,7 +1,7 @@
 open_ai_key.txt
 current_index.txt
-index/build/
-index/dist/
+build/
+dist/
 otorita_pages_query/
 *.xlsx
 *.exe

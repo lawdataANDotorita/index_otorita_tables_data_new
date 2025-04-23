@@ -27,6 +27,8 @@ def fetch_table_data():
     url: str = "https://rmigfbegvrilgentysif.supabase.co"
     key: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtaWdmYmVndnJpbGdlbnR5c2lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mjk0MzEwMjMsImV4cCI6MjA0NTAwNzAyM30.S3HRecwWknLROuORA_nfOlizw5VFOeHp01ku3Y8f89M"
     supabase: Client = create_client(url, key)
+    isUpdateOnly : bool = True
+
 
     # Initialize OpenAI client
     current_dir = get_exe_directory()
@@ -36,7 +38,10 @@ def fetch_table_data():
     global openai_client
     openai_client = OpenAI(api_key=open_ai_key)
 
-    url = "https://otorita.net/otorita_test/maagar/tables/gettbldata.asp?index=10"
+    if isUpdateOnly:
+        url = "https://otorita.net/otorita_test/maagar/tables/gettbldata.asp?isUpdateOnly=1"
+    else:
+        url = "https://otorita.net/otorita_test/maagar/tables/gettbldata.asp?index=10"
     
     try:
         # Send GET request to the URL
@@ -86,17 +91,24 @@ def fetch_table_data():
             except Exception as e:
                 print(f"Error creating embedding for record: {e}")
         
-        # Write all lines to a file
-        with open('formatted_data.txt', 'w', encoding='utf-8') as f:
-            f.write('\n'.join(formatted_lines))
-            
-        print("Data has been written to 'formatted_data.txt'")
-        
         # Insert records into Supabase
         if records_to_insert:
             try:
                 # Process records one by one to identify problematic ones
                 for index, record in enumerate(records_to_insert):
+                    
+                    # Delete existing records with the same name_in_db before inserting new ones
+                    try:
+                        # Delete records that match both content and type=table
+                        delete_response = supabase.table('documents_for_work_world_for_lawyers').delete().eq('content', record['content']).eq('type', 'table').execute()
+                        if hasattr(delete_response, 'error') and delete_response.error:
+                            print(f"Error deleting existing records: {delete_response.error}")
+                        else:
+                            print(f"Deleted existing records for {formatted_text}")
+                    except Exception as e:
+                        print(f"Error during deletion: {e}")
+                    
+                    
                     try:
                         print(f"Inserting record {index + 1} of {len(records_to_insert)}")
                         response = supabase.table('documents_for_work_world_for_lawyers').insert(record).execute()
