@@ -1,7 +1,7 @@
 import requests
 import json
 from supabase import create_client, Client
-from openai import OpenAI
+import cohere
 import os
 import sys
 import time
@@ -15,33 +15,36 @@ def get_exe_directory():
         return os.path.dirname(os.path.abspath(__file__))
 
 def get_embedding(text):
-    response = openai_client.embeddings.create(
-        input=text,
-        model="text-embedding-3-large",
-        dimensions=1536,
-    )
-    return response.data[0].embedding
+    try:
+        response = cohere_client.embed(
+            texts=[text],
+            input_type="search_document",
+            model="embed-multilingual-v3.0",
+        )
+    except Exception as e:
+        print(f"Error getting embedding with cohere: {e}")
+        return None
+    return response.embeddings[0]
 
 def fetch_table_data():
     # Initialize Supabase client
     url: str = "https://rmigfbegvrilgentysif.supabase.co"
     key: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtaWdmYmVndnJpbGdlbnR5c2lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mjk0MzEwMjMsImV4cCI6MjA0NTAwNzAyM30.S3HRecwWknLROuORA_nfOlizw5VFOeHp01ku3Y8f89M"
     supabase: Client = create_client(url, key)
-    isUpdateOnly : bool = True
+    isUpdateOnly : bool = False
 
 
-    # Initialize OpenAI client
     current_dir = get_exe_directory()
-    open_ai_key_path = os.path.join(current_dir, 'open_ai_key.txt')
-    with open(open_ai_key_path, 'r') as f:
-        open_ai_key = f.read().strip()
-    global openai_client
-    openai_client = OpenAI(api_key=open_ai_key)
+    cohere_api_key_path = os.path.join(current_dir, 'cohere_api_key.txt')
+    with open(cohere_api_key_path, 'r') as f:
+        cohere_api_key = f.read().strip()
+    global cohere_client
+    cohere_client = cohere.Client(cohere_api_key)
 
     if isUpdateOnly:
         url = "https://otorita.net/otorita_test/maagar/tables/gettbldata.asp?isUpdateOnly=1"
     else:
-        url = "https://otorita.net/otorita_test/maagar/tables/gettbldata.asp?index=10"
+        url = "https://otorita.net/otorita_test/maagar/tables/gettbldata.asp?index=11"
     
     try:
         # Send GET request to the URL
@@ -67,7 +70,10 @@ def fetch_table_data():
             
             try:
                 embedding = get_embedding(formatted_text)
-            
+                if embedding is None:
+                    print(f"Skipping record - embedding generation failed: {item.get('recName')}")
+                    continue
+
                 # Convert the date from dd/MM/yyyy to yyyy-MM-dd format
                 date_str = item.get("dt", "")
                 if date_str:
@@ -82,7 +88,7 @@ def fetch_table_data():
 
                 record = {
                     "content": formatted_text,
-                    "name_in_db": "table_"+item["tblName"],
+                    "name_in_db": item["recName"],
                     "embedding": embedding,
                     "type": "table",
                     "dt": formatted_date
@@ -100,7 +106,7 @@ def fetch_table_data():
                     # Delete existing records with the same name_in_db before inserting new ones
                     try:
                         # Delete records that match both content and type=table
-                        delete_response = supabase.table('documents_for_work_world_for_lawyers').delete().eq('content', record['content']).eq('type', 'table').execute()
+                        delete_response = supabase.table('documents_for_work_world_for_lawyers_cohere').delete().eq('name_in_db', record['name_in_db']).execute()
                         if hasattr(delete_response, 'error') and delete_response.error:
                             print(f"Error deleting existing records: {delete_response.error}")
                         else:
@@ -111,7 +117,7 @@ def fetch_table_data():
                     
                     try:
                         print(f"Inserting record {index + 1} of {len(records_to_insert)}")
-                        response = supabase.table('documents_for_work_world_for_lawyers').insert(record).execute()
+                        response = supabase.table('documents_for_work_world_for_lawyers_cohere').insert(record).execute()
                         print(f"Successfully inserted record {index + 1}")
                         # Add a small delay between records to prevent overwhelming the connection
                         time.sleep(0.5)

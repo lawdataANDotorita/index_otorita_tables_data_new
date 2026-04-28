@@ -1,5 +1,4 @@
-open_ai_key.txt
-current_index.txt
+*.txt
 build/
 dist/
 otorita_pages_query/
