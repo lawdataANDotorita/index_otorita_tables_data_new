@@ -31,7 +31,7 @@ def fetch_table_data():
     url: str = "https://rmigfbegvrilgentysif.supabase.co"
     key: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtaWdmYmVndnJpbGdlbnR5c2lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mjk0MzEwMjMsImV4cCI6MjA0NTAwNzAyM30.S3HRecwWknLROuORA_nfOlizw5VFOeHp01ku3Y8f89M"
     supabase: Client = create_client(url, key)
-    isUpdateOnly : bool = False
+    isUpdateOnly : bool = True
 
 
     current_dir = get_exe_directory()
@@ -102,19 +102,17 @@ def fetch_table_data():
             try:
                 # Process records one by one to identify problematic ones
                 for index, record in enumerate(records_to_insert):
-                    
-                    # Delete existing records with the same name_in_db before inserting new ones
+
+                    # Skip insert if a record with the same name_in_db already exists
                     try:
-                        # Delete records that match both content and type=table
-                        delete_response = supabase.table('documents_for_work_world_for_lawyers_cohere').delete().eq('name_in_db', record['name_in_db']).execute()
-                        if hasattr(delete_response, 'error') and delete_response.error:
-                            print(f"Error deleting existing records: {delete_response.error}")
-                        else:
-                            print(f"Deleted existing records for {formatted_text}")
+                        existing_response = supabase.table('documents_for_work_world_for_lawyers_cohere').select('id').eq('name_in_db', record['name_in_db']).limit(1).execute()
+                        if existing_response.data:
+                            print(f"Skipping record {index + 1} of {len(records_to_insert)} - already exists: {record['name_in_db']}")
+                            continue
                     except Exception as e:
-                        print(f"Error during deletion: {e}")
-                    
-                    
+                        print(f"Error checking existence for record {index + 1}: {e}")
+                        continue
+
                     try:
                         print(f"Inserting record {index + 1} of {len(records_to_insert)}")
                         response = supabase.table('documents_for_work_world_for_lawyers_cohere').insert(record).execute()
