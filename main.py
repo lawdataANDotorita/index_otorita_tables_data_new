@@ -89,6 +89,7 @@ def fetch_table_data():
                 record = {
                     "content": formatted_text,
                     "name_in_db": item["recName"],
+                    "doc_name": item["docName"],
                     "embedding": embedding,
                     "type": "table",
                     "dt": formatted_date
