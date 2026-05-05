@@ -60,6 +60,8 @@ def fetch_table_data():
         # Create a list to store all formatted lines
         formatted_lines = []
 
+        print(f"Found {len(data)} records")
+
         for index, item in enumerate(data):
             formatted_text = item["txt"]
             formatted_lines.append(formatted_text)
