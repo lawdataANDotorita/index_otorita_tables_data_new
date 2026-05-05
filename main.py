@@ -59,74 +59,51 @@ def fetch_table_data():
         
         # Create a list to store all formatted lines
         formatted_lines = []
-        
-        # Prepare records for Supabase
-        records_to_insert = []
-        
-        # Create records with embeddings
-        for item in data:
+
+        for index, item in enumerate(data):
             formatted_text = item["txt"]
             formatted_lines.append(formatted_text)
-            
+            name_in_db = item["recName"]
+
             try:
-                embedding = get_embedding(formatted_text)
-                if embedding is None:
-                    print(f"Skipping record - embedding generation failed: {item.get('recName')}")
+                existing_response = supabase.table('documents_for_work_world_for_lawyers_cohere').select('id').eq('name_in_db', name_in_db).limit(1).execute()
+                if existing_response.data:
+                    print(f"Skipping record {index + 1} of {len(data)} - it already exists: {name_in_db}")
                     continue
-
-                # Convert the date from dd/MM/yyyy to yyyy-MM-dd format
-                date_str = item.get("dt", "")
-                if date_str:
-                    try:
-                        date_obj = datetime.strptime(date_str, "%d/%m/%Y")
-                        formatted_date = date_obj.strftime("%Y-%m-%d")
-                    except ValueError:
-                        print(f"Warning: Invalid date format for date: {date_str}")
-                        formatted_date = None
-                else:
-                    formatted_date = None
-
-                record = {
-                    "content": formatted_text,
-                    "name_in_db": item["recName"],
-                    "doc_name": item["docName"],
-                    "embedding": embedding,
-                    "type": "table",
-                    "dt": formatted_date
-                }
-                records_to_insert.append(record)
             except Exception as e:
-                print(f"Error creating embedding for record: {e}")
-        
-        # Insert records into Supabase
-        if records_to_insert:
+                print(f"Error checking existence for {name_in_db}: {e}")
+                continue
+
+            date_str = item.get("dt", "")
+            formatted_date = None
+            if date_str:
+                try:
+                    formatted_date = datetime.strptime(date_str, "%d/%m/%Y").strftime("%Y-%m-%d")
+                except ValueError:
+                    print(f"Warning: Invalid date format for date: {date_str}")
+
+            embedding = get_embedding(formatted_text)
+            if embedding is None:
+                print(f"Skipping record - embedding generation failed: {name_in_db}")
+                continue
+
+            record = {
+                "content": formatted_text,
+                "name_in_db": name_in_db,
+                "doc_name": item["docName"],
+                "embedding": embedding,
+                "type": "table",
+                "dt": formatted_date,
+            }
             try:
-                # Process records one by one to identify problematic ones
-                for index, record in enumerate(records_to_insert):
-
-                    # Skip insert if a record with the same name_in_db already exists
-                    try:
-                        existing_response = supabase.table('documents_for_work_world_for_lawyers_cohere').select('id').eq('name_in_db', record['name_in_db']).limit(1).execute()
-                        if existing_response.data:
-                            print(f"Skipping record {index + 1} of {len(records_to_insert)} - already exists: {record['name_in_db']}")
-                            continue
-                    except Exception as e:
-                        print(f"Error checking existence for record {index + 1}: {e}")
-                        continue
-
-                    try:
-                        print(f"Inserting record {index + 1} of {len(records_to_insert)}")
-                        response = supabase.table('documents_for_work_world_for_lawyers_cohere').insert(record).execute()
-                        print(f"Successfully inserted record {index + 1}")
-                        # Add a small delay between records to prevent overwhelming the connection
-                        time.sleep(0.5)
-                    except Exception as e:
-                        print(f"Error inserting record {index + 1}: {str(e)}")
-                        print(f"Record content: {record['content'][:100]}...")  # Print first 100 chars of content
-                        continue
+                print(f"Inserting record {index + 1} of {len(data)}")
+                supabase.table('documents_for_work_world_for_lawyers_cohere').insert(record).execute()
+                print(f"Successfully inserted record {index + 1}")
+                time.sleep(0.5)
             except Exception as e:
-                print(f"Error during Supabase operations: {str(e)}")
-                print("Full error details:", e.__class__.__name__)
+                print(f"Error inserting record {index + 1}: {str(e)}")
+                print(f"Record content: {record['content'][:100]}...")
+                continue
             
     except requests.exceptions.RequestException as e:
         print(f"Error fetching data: {e}")
